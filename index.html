@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="ru" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Мульти-ИИ Чат</title>
+
+    <!-- PWA & Mobile Web App Meta -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#131314">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        gemini: {
+                            bgDark: '#131314',
+                            surfaceDark: '#1e1f20',
+                            cardDark: '#282a2c',
+                            borderDark: '#37393b',
+                            textDark: '#e3e3e3',
+                            blue: '#4c8df6',
+                            purple: '#9b72cf'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Google Sans', 'Inter', 'system-ui', '-apple-system', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Marked JS for Markdown Parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <!-- Highlight.js for Code Highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(155, 155, 155, 0.3); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(155, 155, 155, 0.5); }
+
+        .prose pre {
+            background-color: #1e1f20 !important;
+            border: 1px solid #37393b;
+            border-radius: 0.75rem;
+            padding: 0.875rem;
+            margin-top: 0.75rem;
+            margin-bottom: 0.75rem;
+            overflow-x: auto;
+        }
+        .prose code { font-family: monospace; font-size: 0.875rem; }
+        .prose p { margin-bottom: 0.75rem; line-height: 1.6; }
+        .prose ul { list-style-type: disc; padding-left: 1.25rem; margin-bottom: 0.75rem; }
+        .prose ol { list-style-type: decimal; padding-left: 1.25rem; margin-bottom: 0.75rem; }
+        .prose blockquote { border-left: 3px solid #4c8df6; padding-left: 0.75rem; color: #a1a1aa; margin: 0.75rem 0; }
+        .prose th, .prose td { border: 1px solid #37393b; padding: 0.5rem 0.75rem; text-align: left; }
+        .prose th { background-color: rgba(255, 255, 255, 0.05); }
+
+        .gradient-text {
+            background: linear-gradient(135deg, #4c8df6 0%, #9b72cf 50%, #d96570 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+    </style>
+</head>
+<body class="bg-gemini-bgDark text-gemini-textDark h-full flex flex-col font-sans select-none antialiased">
+
+    <!-- Верхняя панель -->
+    <header class="h-14 flex items-center justify-between px-3 md:px-5 border-b border-gemini-borderDark/40 bg-gemini-bgDark shrink-0 z-20">
+        <div class="flex items-center gap-2">
+            <button id="btn-toggle-sidebar" class="p-2 hover:bg-gemini-surfaceDark rounded-full text-gray-300 transition-colors">
+                <i data-lucide="menu" class="w-5 h-5"></i>
+            </button>
+            <div class="flex items-center gap-2 cursor-pointer" onclick="openSettingsModal()">
+                <span class="font-medium text-base md:text-lg tracking-wide text-gray-100 flex items-center gap-1.5 flex-wrap">
+                    <span id="provider-title-badge" class="text-xs uppercase bg-gemini-surfaceDark border border-gemini-borderDark px-2 py-0.5 rounded-full text-gemini-blue font-mono">Gemini</span>
+                    <span id="model-title-badge" class="text-xs text-gray-400 font-mono hidden sm:inline">flash-2.5</span>
+                </span>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-1">
+            <button onclick="createNewChat()" class="p-2 hover:bg-gemini-surfaceDark rounded-full text-gray-300 transition-colors" title="Новый чат">
+                <i data-lucide="square-pen" class="w-5 h-5"></i>
+            </button>
+            <button onclick="openSettingsModal()" class="p-2 hover:bg-gemini-surfaceDark rounded-full text-gray-300 transition-colors" title="Настройки API">
+                <i data-lucide="settings" class="w-5 h-5"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Основной макет -->
+    <div class="flex-1 flex overflow-hidden relative">
+
+        <!-- Затемнение для мобильного сайдбара -->
+        <div id="sidebar-overlay" class="fixed inset-0 bg-black/60 z-30 opacity-0 pointer-events-none transition-opacity duration-300"></div>
+
+        <!-- Левое меню / Сайдбар -->
+        <aside id="sidebar" class="fixed md:static inset-y-0 left-0 w-72 bg-gemini-surfaceDark border-r border-gemini-borderDark/50 flex flex-col z-40 transform -translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out">
+            <div class="p-3">
+                <button onclick="createNewChat(); closeSidebar();" class="w-full flex items-center gap-3 px-4 py-3 bg-gemini-cardDark hover:bg-gemini-borderDark rounded-full text-gray-200 transition-all border border-gemini-borderDark/60 shadow-sm">
+                    <i data-lucide="plus" class="w-5 h-5 text-gemini-blue"></i>
+                    <span class="text-sm font-medium">Новый чат</span>
+                </button>
+            </div>
+
+            <div class="flex-1 overflow-y-auto px-2 py-1">
+                <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 px-3 py-2">История чатов</div>
+                <div id="chat-list" class="space-y-1"></div>
+            </div>
+
+            <div class="p-3 border-t border-gemini-borderDark/50 flex flex-col gap-2">
+                <button onclick="openSettingsModal(); closeSidebar();" class="flex items-center gap-3 w-full px-3 py-2 text-sm text-gray-300 hover:bg-gemini-cardDark rounded-lg transition-colors">
+                    <i data-lucide="key" class="w-4 h-4 text-gemini-purple"></i>
+                    <span class="truncate">Ключи и Провайдеры</span>
+                </button>
+                <div class="flex items-center justify-between px-3 py-1 text-xs text-gray-500">
+                    <span>Провайдер:</span>
+                    <span id="active-provider-name" class="font-mono text-gray-300">Gemini</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Область чата -->
+        <main class="flex-1 flex flex-col h-full bg-gemini-bgDark relative overflow-hidden">
+            
+            <!-- Список сообщений -->
+            <div id="chat-container" class="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 scroll-smooth">
+                
+                <!-- Приветственный экран -->
+                <div id="welcome-screen" class="h-full flex flex-col items-center justify-center text-center px-4 max-w-2xl mx-auto">
+                    <div class="w-16 h-16 rounded-2xl bg-gemini-surfaceDark flex items-center justify-center mb-6 border border-gemini-borderDark shadow-inner">
+                        <i data-lucide="sparkles" class="w-8 h-8 text-gemini-blue"></i>
+                    </div>
+                    <h1 class="text-3xl md:text-4xl font-semibold mb-3 gradient-text">Мульти-ИИ Ассистент</h1>
+                    <p class="text-gray-400 text-sm md:text-base mb-8">Общайтесь с Gemini, ChatGPT, Claude и другими нейросетями в одном красивом интерфейсе. Введите ваш API-ключ в настройках.</p>
+
+                    <!-- Быстрые подсказки -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-lg">
+                        <button onclick="usePrompt('Напиши вежливое письмо с просьбой обновить статус проекта')" class="p-3.5 text-left bg-gemini-surfaceDark hover:bg-gemini-cardDark border border-gemini-borderDark/60 rounded-2xl text-xs md:text-sm text-gray-300 transition-all flex flex-col gap-1">
+                            <i data-lucide="pen-tool" class="w-4 h-4 text-gemini-purple"></i>
+                            <span>Написать рабочее письмо</span>
+                        </button>
+                        <button onclick="usePrompt('Объясни принципы работы асинхронного кода в JavaScript простыми словами')" class="p-3.5 text-left bg-gemini-surfaceDark hover:bg-gemini-cardDark border border-gemini-borderDark/60 rounded-2xl text-xs md:text-sm text-gray-300 transition-all flex flex-col gap-1">
+                            <i data-lucide="code-2" class="w-4 h-4 text-gemini-blue"></i>
+                            <span>Объяснить JS Promisses</span>
+                        </button>
+                        <button onclick="usePrompt('Предложи 5 идей быстрых и полезных ужинов на скорую руку')" class="p-3.5 text-left bg-gemini-surfaceDark hover:bg-gemini-cardDark border border-gemini-borderDark/60 rounded-2xl text-xs md:text-sm text-gray-300 transition-all flex flex-col gap-1">
+                            <i data-lucide="utensils" class="w-4 h-4 text-amber-400"></i>
+                            <span>Идеи для ужина</span>
+                        </button>
+                        <button onclick="usePrompt('Составь план путешествия на 3 дня в Стамбул с бюджетом')" class="p-3.5 text-left bg-gemini-surfaceDark hover:bg-gemini-cardDark border border-gemini-borderDark/60 rounded-2xl text-xs md:text-sm text-gray-300 transition-all flex flex-col gap-1">
+                            <i data-lucide="compass" class="w-4 h-4 text-emerald-400"></i>
+                            <span>План поездки в Стамбул</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Список сообщений -->
+                <div id="messages-list" class="space-y-6 max-w-3xl mx-auto w-full pb-4"></div>
+            </div>
+
+            <!-- Плавающая панель ввода внизу -->
+            <div class="p-3 md:p-4 bg-gemini-bgDark border-t border-gemini-borderDark/40">
+                <div class="max-w-3xl mx-auto relative">
+                    <form id="chat-form" onsubmit="handleChatSubmit(event)" class="relative flex items-end bg-gemini-surfaceDark border border-gemini-borderDark focus-within:border-gemini-blue rounded-3xl p-2 transition-all shadow-md">
+                        <textarea 
+                            id="user-input" 
+                            rows="1" 
+                            placeholder="Спросите о чём угодно..." 
+                            class="w-full bg-transparent text-gray-100 placeholder-gray-500 text-sm md:text-base px-3 py-2 focus:outline-none resize-none max-h-36 overflow-y-auto"
+                            onkeydown="handleKeyDown(event)"
+                            oninput="autoResizeTextarea(this)"></textarea>
+
+                        <div class="flex items-center gap-1 pr-1 pb-1">
+                            <button type="submit" id="btn-send" class="w-9 h-9 rounded-full bg-gemini-blue text-white flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed hover:bg-blue-600 transition-colors">
+                                <i data-lucide="arrow-up" class="w-5 h-5"></i>
+                            </button>
+                        </div>
+                    </form>
+                    <div class="text-[10px] text-center text-gray-500 mt-2">
+                        ИИ может допускать ошибки. Проверяйте важную информацию.
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Модальное окно настроек и ключей -->
+    <div id="settings-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-gemini-surfaceDark border border-gemini-borderDark w-full max-w-xl rounded-2xl p-5 md:p-6 shadow-2xl flex flex-col max-h-[90vh]">
+            <div class="flex items-center justify-between pb-4 border-b border-gemini-borderDark">
+                <h2 class="text-lg font-semibold text-gray-100 flex items-center gap-2">
+                    <i data-lucide="sliders" class="w-5 h-5 text-gemini-blue"></i> Настройки провайдеров и ключей
+                </h2>
+                <button onclick="closeSettingsModal()" class="text-gray-400 hover:text-white p-1 rounded-full">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="flex-1 overflow-y-auto space-y-5 py-4 pr-1 text-sm">
+                <!-- Выбор провайдера -->
+                <div>
+                    <label class="block font-medium text-gray-200 mb-1.5">Активный провайдер ИИ</label>
+                    <select id="setting-provider" onchange="onProviderChange()" class="w-full bg-gemini-bgDark border border-gemini-borderDark rounded-xl px-3 py-2.5 text-gray-100 focus:outline-none focus:border-gemini-blue">
+                        <option value="gemini">Google Gemini</option>
+                        <option value="openai">OpenAI (ChatGPT)</option>
+                        <option value="anthropic">Anthropic Claude</option>
+                        <option value="custom">Свой эндпоинт / OpenRouter / OpenAI-совместимый</option>
+                    </select>
+                </div>
+
+                <!-- Выбор модели -->
+                <div>
+                    <label class="block font-medium text-gray-200 mb-1.5">Модель</label>
+                    <select id="setting-model" class="w-full bg-gemini-bgDark border border-gemini-borderDark rounded-xl px-3 py-2.5 text-gray-100 focus:outline-none focus:border-gemini-blue">
+                        <!-- Динамически заполняется в JS -->
+                    </select>
+                    <input type="text" id="setting-custom-model" placeholder="Название модели (например, deepseek/deepseek-chat)" class="w-full bg-gemini-bgDark border border-gemini-borderDark rounded-xl px-3 py-2.5 text-gray-100 focus:outline-none focus:border-gemini-blue mt-2 hidden">
+                </div>
+
+                <!-- Блоки ключей для каждого провайдера -->
+                <div class="space-y-3 pt-2 border-t border-gemini-borderDark/60">
+                    <h3 class="font-medium text-gray-200">API-ключи провайдеров</h3>
+                    
+                    <!-- Gemini Key -->
+                    <div id="key-group-gemini" class="provider-key-group">
+                        <label class="block text-xs text-gray-400 mb-1">Google Gemini API Key (<a href="https://aistudio.google.com/" target="_blank" class="text-gemini-blue underline">получить</a>)</label>
+                        <input type="password" id="key-gemini" placeholder="AIzaSy..." class="w-full bg-gemini-bgDark border border-gemini-borderDark rounded-xl px-3 py-2 text-gray-100 focus:outline-none focus:border-gemini-blue text-sm">
+                    </div>
+
+                    <!-- OpenAI Key -->
+                    <div id="key-group-openai" class="provider-key-group hidden">
+                        <label class="block text-xs text-gray-400 mb-1">OpenAI API Key (<a href="https://platform.openai.com/" target="_blank" class="text-gemini-blue underline">получить</a>)</label>
+                        <input type="password" id="key-openai" placeholder="sk-..." class="w-full bg-gemini-bgDark border border-gemini-borderDark rounded-xl px-3 py-2 text-gray-100 focus:outline-none focus:border-gemini-blue text-sm">
+                    </div>
+
+                    <!-- Anthropic Key -->
+                    <div id="key-group-anthropic" class="provider-key-group hidden">
+                        <label class="block text-xs text-gray-400 mb-1">Anthropic Claude API Key (<a href="https://console.anthropic.com/" target="_blank" class="text-gemini-blue underline">получить</a>)</label>
+                        <input type="password" id="key-anthropic" placeholder="sk-ant-..." class="w-full bg-gemini-bgDark border border-gemini-borderDark rounded-xl px-3 py-2 text-gray-100 focus:outline-none focus:border-gemini-blue text-sm">
+                    </div>
+
+                    <!-- Custom / OpenRouter Key & URL -->
+                    <div id="key-group-custom" class="provider-key-group hidden space-y-2">
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">Базовый URL (Base URL)</label>
+                            <input type="text" id="setting-custom-url" placeholder="https://openrouter.ai/api/v1" class="w-full bg-gemini-bgDark border border-gemini-borderDark rounded-xl px-3 py-2 text-gray-100 focus:outline-none focus:border-gemini-blue text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">API Key / Токен</label>
+                            <input type="password" id="key-custom" placeholder="Ваш секретный ключ..." class="w-full bg-gemini-bgDark border border-gemini-borderDark rounded-xl px-3 py-2 text-gray-100 focus:outline-none focus:border-gemini-blue text-sm">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Системная инструкция -->
+                <div class="pt-2 border-t border-gemini-borderDark/60">
+                    <label class="block font-medium text-gray-200 mb-1">Системная инструкция (Роль ИИ)</label>
+                    <textarea id="setting-system-instruction" rows="2" placeholder="Вы — полезный и дружелюбный ИИ-ассистент..." class="w-full bg-gemini-bgDark border border-gemini-borderDark rounded-xl p-3 text-gray-100 focus:outline-none focus:border-gemini-blue text-sm resize-none"></textarea>
+                </div>
+
+                <!-- Дополнительные параметры -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="font-medium text-gray-200">Температура</label>
+                            <span id="temp-val" class="text-xs text-gemini-blue font-mono">0.7</span>
+                        </div>
+                        <input type="range" id="setting-temperature" min="0" max="2" step="0.1" value="0.7" oninput="document.getElementById('temp-val').innerText = this.value" class="w-full accent-gemini-blue">
+                    </div>
+                    <div>
+                        <label class="block font-medium text-gray-200 mb-1">Максимум токенов</label>
+                        <input type="number" id="setting-max-tokens" value="4096" min="100" max="16384" class="w-full bg-gemini-bgDark border border-gemini-borderDark rounded-xl px-3 py-2 text-gray-100 focus:outline-none focus:border-gemini-blue text-sm">
+                    </div>
+                </div>
+            </div>
+
+            <div class="pt-4 border-t border-gemini-borderDark flex justify-end gap-2">
+                <button onclick="closeSettingsModal()" class="px-4 py-2 text-xs font-medium text-gray-300 hover:bg-gemini-cardDark rounded-xl transition-colors">Отмена</button>
+                <button onclick="saveSettings()" class="px-4 py-2 text-xs font-medium bg-gemini-blue hover:bg-blue-600 text-white rounded-xl transition-colors">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Уведомления (Тост) -->
+    <div id="toast" class="fixed bottom-20 left-1/2 -translate-x-1/2 bg-gemini-cardDark border border-gemini-borderDark text-gray-200 px-4 py-2 rounded-full text-xs opacity-0 transition-opacity duration-300 pointer-events-none z-50 flex items-center gap-2 shadow-lg">
+        <span id="toast-message">Уведомление</span>
+    </div>
+
+    <!-- Скрипт приложения -->
+    <script>
+        // Списки моделей по провайдерам
+        const MODEL_OPTIONS = {
+            gemini: [
+                { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Рекомендуется)' },
+                { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro (Сложные задачи)' },
+                { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro' },
+                { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash' }
+            ],
+            openai: [
+                { id: 'gpt-4o', name: 'GPT-4o (Самая умная)' },
+                { id: 'gpt-4o-mini', name: 'GPT-4o Mini (Быстрая)' },
+                { id: 'gpt-4-turbo', name: 'GPT-4 Turbo' },
+                { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo' }
+            ],
+            anthropic: [
+                { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet' },
+                { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku' },
+                { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus' }
+            ],
+            custom: []
+        };
+
+        // Состояние приложения
+        let appState = {
+            provider: localStorage.getItem('ai_provider') || 'gemini',
+            model: localStorage.getItem('ai_model') || 'gemini-2.5-flash',
+            customModel: localStorage.getItem('ai_custom_model') || '',
+            customUrl: localStorage.getItem('ai_custom_url') || '',
+            keys: {
+                gemini: localStorage.getItem('key_gemini') || '',
+                openai: localStorage.getItem('key_openai') || '',
+                anthropic: localStorage.getItem('key_anthropic') || '',
+                custom: localStorage.getItem('key_custom') || ''
+            },
+            systemInstruction: localStorage.getItem('ai_system') || '',
+            temperature: parseFloat(localStorage.getItem('ai_temp') || '0.7'),
+            maxTokens: parseInt(localStorage.getItem('ai_maxtokens') || '4096'),
+            chats: JSON.parse(localStorage.getItem('ai_chats') || '[]'),
+            currentChatId: null,
+            isGenerating: false
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            loadSettingsToUI();
+            updateHeaderBadges();
+
+            const btnSidebar = document.getElementById('btn-toggle-sidebar');
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+
+            btnSidebar.addEventListener('click', () => {
+                sidebar.classList.toggle('-translate-x-full');
+                overlay.classList.toggle('opacity-0');
+                overlay.classList.toggle('pointer-events-none');
+            });
+
+            overlay.addEventListener('click', closeSidebar);
+
+            if (appState.chats.length > 0) {
+                switchChat(appState.chats[0].id);
+            } else {
+                createNewChat();
+            }
+            renderChatList();
+        });
+
+        function closeSidebar() {
+            document.getElementById('sidebar').classList.add('-translate-x-full');
+            document.getElementById('sidebar-overlay').classList.add('opacity-0', 'pointer-events-none');
+        }
+
+        function loadSettingsToUI() {
+            document.getElementById('setting-provider').value = appState.provider;
+            document.getElementById('key-gemini').value = appState.keys.gemini;
+            document.getElementById('key-openai').value = appState.keys.openai;
+            document.getElementById('key-anthropic').value = appState.keys.anthropic;
+            document.getElementById('key-custom').value = appState.keys.custom;
+            document.getElementById('setting-custom-url').value = appState.customUrl;
+            document.getElementById('setting-system-instruction').value = appState.systemInstruction;
+            document.getElementById('setting-temperature').value = appState.temperature;
+            document.getElementById('temp-val').innerText = appState.temperature;
+            document.getElementById('setting-max-tokens').value = appState.maxTokens;
+            document.getElementById('setting-custom-model').value = appState.customModel;
+
+            updateModelDropdown();
+            updateProviderKeyGroups();
+        }
+
+        function onProviderChange() {
+            const provider = document.getElementById('setting-provider').value;
+            appState.provider = provider;
+            updateModelDropdown();
+            updateProviderKeyGroups();
+        }
+
+        function updateModelDropdown() {
+            const provider = document.getElementById('setting-provider').value;
+            const selectEl = document.getElementById('setting-model');
+            const customInput = document.getElementById('setting-custom-model');
+
+            selectEl.innerHTML = '';
+            if (provider === 'custom') {
+                selectEl.classList.add('hidden');
+                customInput.classList.remove('hidden');
+            } else {
+                selectEl.classList.remove('hidden');
+                customInput.classList.add('hidden');
+                const models = MODEL_OPTIONS[provider] || [];
+                models.forEach(m => {
+                    const opt = document.createElement('option');
+                    opt.value = m.id;
+                    opt.textContent = m.name;
+                    if (m.id === appState.model) opt.selected = true;
+                    selectEl.appendChild(opt);
+                });
+            }
+        }
+
+        function updateProviderKeyGroups() {
+            const provider = document.getElementById('setting-provider').value;
+            document.querySelectorAll('.provider-key-group').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`key-group-${provider}`).classList.remove('hidden');
+        }
+
+        function saveSettings() {
+            appState.provider = document.getElementById('setting-provider').value;
+            if (appState.provider === 'custom') {
+                appState.model = document.getElementById('setting-custom-model').value.trim() || 'gpt-4o';
+                appState.customModel = appState.model;
+                appState.customUrl = document.getElementById('setting-custom-url').value.trim();
+            } else {
+                appState.model = document.getElementById('setting-model').value;
+            }
+
+            appState.keys.gemini = document.getElementById('key-gemini').value.trim();
+            appState.keys.openai = document.getElementById('key-openai').value.trim();
+            appState.keys.anthropic = document.getElementById('key-anthropic').value.trim();
+            appState.keys.custom = document.getElementById('key-custom').value.trim();
+
+            appState.systemInstruction = document.getElementById('setting-system-instruction').value.trim();
+            appState.temperature = parseFloat(document.getElementById('setting-temperature').value);
+            appState.maxTokens = parseInt(document.getElementById('setting-max-tokens').value);
+
+            localStorage.setItem('ai_provider', appState.provider);
+            localStorage.setItem('ai_model', appState.model);
+            localStorage.setItem('ai_custom_model', appState.customModel);
+            localStorage.setItem('ai_custom_url', appState.customUrl);
+            localStorage.setItem('key_gemini', appState.keys.gemini);
+            localStorage.setItem('key_openai', appState.keys.openai);
+            localStorage.setItem('key_anthropic', appState.keys.anthropic);
+            localStorage.setItem('key_custom', appState.keys.custom);
+            localStorage.setItem('ai_system', appState.systemInstruction);
+            localStorage.setItem('ai_temp', appState.temperature);
+            localStorage.setItem('ai_maxtokens', appState.maxTokens);
+
+            updateHeaderBadges();
+            closeSettingsModal();
+            showToast('Настройки успешно сохранены');
+        }
+
+        function updateHeaderBadges() {
+            document.getElementById('provider-title-badge').innerText = appState.provider.toUpperCase();
+            document.getElementById('model-title-badge').innerText = appState.model;
+            document.getElementById('active-provider-name').innerText = appState.provider.toUpperCase();
+        }
+
+        function openSettingsModal() {
+            loadSettingsToUI();
+            document.getElementById('settings-modal').classList.remove('hidden');
+        }
+
+        function closeSettingsModal() {
+            document.getElementById('settings-modal').classList.add('hidden');
+        }
+
+        // Управление чатами
+        function createNewChat() {
+            const newChat = {
+                id: 'chat_' + Date.now(),
+                title: 'Новый чат',
+                messages: []
+            };
+            appState.chats.unshift(newChat);
+            appState.currentChatId = newChat.id;
+            saveChatsToStorage();
+            renderChatList();
+            renderMessages();
+        }
+
+        function switchChat(chatId) {
+            appState.currentChatId = chatId;
+            renderChatList();
+            renderMessages();
+            closeSidebar();
+        }
+
+        function deleteChat(chatId, e) {
+            e.stopPropagation();
+            appState.chats = appState.chats.filter(c => c.id !== chatId);
+            saveChatsToStorage();
+            if (appState.currentChatId === chatId) {
+                if (appState.chats.length > 0) {
+                    appState.currentChatId = appState.chats[0].id;
+                } else {
+                    createNewChat();
+                    return;
+                }
+            }
+            renderChatList();
+            renderMessages();
+        }
+
+        function saveChatsToStorage() {
+            localStorage.setItem('ai_chats', JSON.stringify(appState.chats));
+        }
+
+        function getCurrentChat() {
+            return appState.chats.find(c => c.id === appState.currentChatId);
+        }
+
+        function renderChatList() {
+            const container = document.getElementById('chat-list');
+            container.innerHTML = '';
+
+            appState.chats.forEach(chat => {
+                const isActive = chat.id === appState.currentChatId;
+                const div = document.createElement('div');
+                div.className = `group flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer text-sm transition-colors ${isActive ? 'bg-gemini-cardDark text-white font-medium' : 'text-gray-400 hover:bg-gemini-cardDark/50 hover:text-gray-200'}`;
+                div.onclick = () => switchChat(chat.id);
+
+                div.innerHTML = `
+                    <div class="flex items-center gap-2.5 truncate">
+                        <i data-lucide="message-square" class="w-4 h-4 shrink-0 ${isActive ? 'text-gemini-blue' : 'text-gray-500'}"></i>
+                        <span class="truncate">${escapeHtml(chat.title)}</span>
+                    </div>
+                    <button onclick="deleteChat('${chat.id}', event)" class="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 text-gray-500 rounded transition-opacity">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                    </button>
+                `;
+                container.appendChild(div);
+            });
+            lucide.createIcons();
+        }
+
+        function renderMessages() {
+            const chat = getCurrentChat();
+            const list = document.getElementById('messages-list');
+            const welcomeScreen = document.getElementById('welcome-screen');
+
+            if (!chat || chat.messages.length === 0) {
+                welcomeScreen.classList.remove('hidden');
+                list.innerHTML = '';
+                return;
+            }
+
+            welcomeScreen.classList.add('hidden');
+            list.innerHTML = '';
+
+            chat.messages.forEach((msg) => {
+                const msgDiv = document.createElement('div');
+                const isUser = msg.role === 'user';
+                msgDiv.className = `flex flex-col ${isUser ? 'items-end' : 'items-start'} space-y-1`;
+                
+                let contentHtml = '';
+                if (isUser) {
+                    contentHtml = `<div class="bg-gemini-cardDark text-gray-100 px-4 py-3 rounded-2xl rounded-tr-xs max-w-[85%] border border-gemini-borderDark/65 whitespace-pre-wrap">${escapeHtml(msg.text)}</div>`;
+                } else {
+                    contentHtml = `
+                        <div class="flex items-start gap-3 w-full">
+                            <div class="w-7 h-7 rounded-full bg-gemini-surfaceDark flex items-center justify-center shrink-0 border border-gemini-borderDark mt-1">
+                                <i data-lucide="sparkles" class="w-4 h-4 text-gemini-blue"></i>
+                            </div>
+                            <div class="flex-1 prose text-gray-200 text-sm md:text-base max-w-full overflow-hidden">
+                                ${marked.parse(msg.text)}
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 ml-10 mt-1">
+                            <button onclick="copyToClipboard('${escapeJs(msg.text)}')" class="text-xs text-gray-500 hover:text-gray-300 p-1 rounded flex items-center gap-1">
+                                <i data-lucide="copy" class="w-3.5 h-3.5"></i> Копировать
+                            </button>
+                        </div>
+                    `;
+                }
+                msgDiv.innerHTML = contentHtml;
+                list.appendChild(msgDiv);
+            });
+
+            hljs.highlightAll();
+            lucide.createIcons();
+            scrollToBottom();
+        }
+
+        // Отправка сообщений и мультиплексор провайдеров
+        async function handleChatSubmit(e) {
+            e.preventDefault();
+            if (appState.isGenerating) return;
+
+            const input = document.getElementById('user-input');
+            const userText = input.value.trim();
+            if (!userText) return;
+
+            const currentKey = appState.keys[appState.provider];
+            if (!currentKey && appState.provider !== 'custom') {
+                openSettingsModal();
+                showToast(`Введите API-ключ для ${appState.provider.toUpperCase()}`);
+                return;
+            }
+
+            const chat = getCurrentChat();
+            if (chat.messages.length === 0) {
+                chat.title = userText.length > 25 ? userText.substring(0, 25) + '...' : userText;
+                renderChatList();
+            }
+
+            chat.messages.push({ role: 'user', text: userText });
+            input.value = '';
+            autoResizeTextarea(input);
+            renderMessages();
+
+            appState.isGenerating = true;
+            document.getElementById('btn-send').disabled = true;
+
+            const aiMessageObj = { role: 'model', text: '' };
+            chat.messages.push(aiMessageObj);
+            renderMessages();
+
+            try {
+                if (appState.provider === 'gemini') {
+                    await streamGemini(chat, aiMessageObj);
+                } else if (appState.provider === 'openai' || appState.provider === 'custom') {
+                    await streamOpenAICompatible(chat, aiMessageObj);
+                } else if (appState.provider === 'anthropic') {
+                    await streamAnthropic(chat, aiMessageObj);
+                }
+            } catch (err) {
+                console.error(err);
+                aiMessageObj.text = `**Ошибка:** ${err.message || 'Не удалось получить ответ от ИИ.'}`;
+                renderMessages();
+            } finally {
+                appState.isGenerating = false;
+                document.getElementById('btn-send').disabled = false;
+                saveChatsToStorage();
+            }
+        }
+
+        // 1. Gemini Streaming
+        async function streamGemini(chat, aiMessageObj) {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${appState.model}:streamGenerateContent?alt=sse&key=${appState.keys.gemini}`;
+            const contents = chat.messages.slice(0, -1).map(m => ({
+                role: m.role === 'user' ? 'user' : 'model',
+                parts: [{ text: m.text }]
+            }));
+
+            const payload = {
+                contents: contents,
+                generationConfig: {
+                    temperature: appState.temperature,
+                    maxOutputTokens: appState.maxTokens
+                }
+            };
+
+            if (appState.systemInstruction) {
+                payload.systemInstruction = { parts: [{ text: appState.systemInstruction }] };
+            }
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                throw new Error(err.error?.message || `HTTP ${response.status}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop();
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const jsonStr = line.replace('data: ', '').trim();
+                        if (jsonStr === '[DONE]') continue;
+                        try {
+                            const data = JSON.parse(jsonStr);
+                            const chunk = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                            if (chunk) {
+                                aiMessageObj.text += chunk;
+                                updateLastAiMessage(aiMessageObj.text);
+                            }
+                        } catch (e) {}
+                    }
+                }
+            }
+        }
+
+        // 2. OpenAI & OpenRouter / Custom OpenAI Compatible Streaming
+        async function streamOpenAICompatible(chat, aiMessageObj) {
+            let baseUrl = 'https://api.openai.com/v1';
+            let apiKey = appState.keys.openai;
+
+            if (appState.provider === 'custom') {
+                baseUrl = appState.customUrl.replace(/\/$/, '') || 'https://openrouter.ai/api/v1';
+                apiKey = appState.keys.custom;
+            }
+
+            const messages = [];
+            if (appState.systemInstruction) {
+                messages.push({ role: 'system', content: appState.systemInstruction });
+            }
+            chat.messages.slice(0, -1).forEach(m => {
+                messages.push({
+                    role: m.role === 'user' ? 'user' : 'assistant',
+                    content: m.text
+                });
+            });
+
+            const payload = {
+                model: appState.model,
+                messages: messages,
+                temperature: appState.temperature,
+                max_tokens: appState.maxTokens,
+                stream: true
+            };
+
+            const response = await fetch(`${baseUrl}/chat/completions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                throw new Error(err.error?.message || `HTTP ${response.status}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop();
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const jsonStr = line.replace('data: ', '').trim();
+                        if (jsonStr === '[DONE]') continue;
+                        try {
+                            const data = JSON.parse(jsonStr);
+                            const chunk = data.choices?.[0]?.delta?.content;
+                            if (chunk) {
+                                aiMessageObj.text += chunk;
+                                updateLastAiMessage(aiMessageObj.text);
+                            }
+                        } catch (e) {}
+                    }
+                }
+            }
+        }
+
+        // 3. Anthropic Claude Streaming
+        async function streamAnthropic(chat, aiMessageObj) {
+            const messages = chat.messages.slice(0, -1).map(m => ({
+                role: m.role === 'user' ? 'user' : 'assistant',
+                content: m.text
+            }));
+
+            const payload = {
+                model: appState.model,
+                messages: messages,
+                max_tokens: appState.maxTokens,
+                temperature: appState.temperature,
+                stream: true
+            };
+
+            if (appState.systemInstruction) {
+                payload.system = appState.systemInstruction;
+            }
+
+            const response = await fetch('https://api.anthropic.com/v1/messages', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-api-key': appState.keys.anthropic,
+                    'anthropic-version': '2023-06-01',
+                    'anthropic-dangerous-direct-browser-access': 'true'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                throw new Error(err.error?.message || `HTTP ${response.status}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop();
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const jsonStr = line.replace('data: ', '').trim();
+                        try {
+                            const data = JSON.parse(jsonStr);
+                            if (data.type === 'content_block_delta' && data.delta?.text) {
+                                aiMessageObj.text += data.delta.text;
+                                updateLastAiMessage(aiMessageObj.text);
+                            }
+                        } catch (e) {}
+                    }
+                }
+            }
+        }
+
+        function updateLastAiMessage(text) {
+            const list = document.getElementById('messages-list');
+            const lastMsg = list.lastElementChild;
+            if (lastMsg) {
+                const prose = lastMsg.querySelector('.prose');
+                if (prose) {
+                    prose.innerHTML = marked.parse(text);
+                    hljs.highlightAll();
+                }
+            }
+            scrollToBottom();
+        }
+
+        function usePrompt(text) {
+            const input = document.getElementById('user-input');
+            input.value = text;
+            autoResizeTextarea(input);
+            input.focus();
+        }
+
+        function handleKeyDown(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                document.getElementById('chat-form').dispatchEvent(new Event('submit'));
+            }
+        }
+
+        function autoResizeTextarea(el) {
+            el.style.height = 'auto';
+            el.style.height = Math.min(el.scrollHeight, 140) + 'px';
+        }
+
+        function scrollToBottom() {
+            const container = document.getElementById('chat-container');
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-message').innerText = msg;
+            toast.classList.remove('opacity-0');
+            setTimeout(() => toast.classList.add('opacity-0'), 3000);
+        }
+
+        function copyToClipboard(text) {
+            const temp = document.createElement('textarea');
+            temp.value = text;
+            document.body.appendChild(temp);
+            temp.select();
+            document.execCommand('copy');
+            document.body.removeChild(temp);
+            showToast('Скопировано в буфер обмена');
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+
+        function escapeJs(str) {
+            return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n');
+        }
+    </script>
+</body>
+</html>
