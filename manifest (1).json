@@ -1,0 +1,14 @@
+{
+  "background_color": "#ffffff",
+  "dir": "ltr",
+  "display": "standalone",
+  "name": "Deekpeek",
+  "orientation": "any",
+  "scope": "/",
+  "short_name": "Deekpeek",
+  "start_url": "https://mistermolodec.github.io/Website/",
+  "theme_color": "#131314",
+  "id": "67",
+  "description": "Deekpeek",
+  "lang": "ru"
+}
