@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ИИ Чат Ассистент</title>
+    <title>Мультивендорный ИИ Чат</title>
     <link rel="manifest" href="manifest.json">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
@@ -12,11 +12,11 @@
             background-color: #f3f4f6; 
             display: flex; 
             flex-direction: column; 
-            height: 100dvh; /* Корректная высота под мобильные браузеры */
+            height: 100dvh; 
             overflow: hidden; 
         }
         
-        /* Шапка в первом стиле */
+        /* Шапка первого стиля */
         header { 
             background: #2563eb; 
             color: white; 
@@ -25,8 +25,10 @@
             justify-content: space-between; 
             align-items: center; 
             flex-shrink: 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         header h1 { font-size: 1.1rem; }
+        .header-btns { display: flex; gap: 8px; }
         header button { 
             background: rgba(255,255,255,0.2); 
             border: none; 
@@ -35,8 +37,10 @@
             border-radius: 6px; 
             cursor: pointer; 
             font-weight: 500;
+            font-size: 0.85rem;
         }
-        
+        header button:hover { background: rgba(255,255,255,0.3); }
+
         /* Модальное окно настроек */
         #settings-modal { 
             display: none; 
@@ -61,8 +65,8 @@
         .modal-content h2 { margin-bottom: 15px; font-size: 1.2rem; color: #1f2937; }
         .form-group { margin-bottom: 12px; }
         .form-group label { display: block; font-size: 0.85rem; color: #4b5563; margin-bottom: 4px; }
-        .form-group input { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.95rem; outline: none; color: #1f2937; background: #fff; }
-        .form-group input:focus { border-color: #2563eb; }
+        .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.95rem; outline: none; color: #1f2937; background: #fff; }
+        .form-group input:focus, .form-group select:focus { border-color: #2563eb; }
         .save-btn { background: #2563eb; color: white; border: none; width: 100%; padding: 12px; border-radius: 6px; font-weight: bold; cursor: pointer; margin-top: 10px; }
 
         /* Область чата */
@@ -72,15 +76,29 @@
             padding: 15px; 
             display: flex; 
             flex-direction: column; 
-            gap: 10px; 
+            gap: 12px; 
             -webkit-overflow-scrolling: touch;
         }
-        .message { max-width: 85%; padding: 12px; border-radius: 12px; font-size: 0.95rem; line-height: 1.4; word-wrap: break-word; }
+        .message { max-width: 85%; padding: 12px 14px; border-radius: 12px; font-size: 0.95rem; line-height: 1.4; word-wrap: break-word; }
         .user-message { background: #2563eb; color: white; align-self: flex-end; border-bottom-right-radius: 2px; }
         .bot-message { background: white; color: #1f2937; align-self: flex-start; border-bottom-left-radius: 2px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         .system-message { background: #fee2e2; color: #991b1b; align-self: center; font-size: 0.85rem; border-radius: 6px; padding: 8px 12px; text-align: center; }
 
-        /* Форма ввода — жестко внизу экрана */
+        /* Предпросмотр прикрепленного файла */
+        #file-preview-container {
+            display: none;
+            padding: 8px 12px;
+            background: #e5e7eb;
+            border-top: 1px solid #d1d5db;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.85rem;
+            color: #374151;
+        }
+        #file-preview-container span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 80%; }
+        #remove-file-btn { background: none; border: none; color: #dc2626; font-weight: bold; cursor: pointer; font-size: 1rem; }
+
+        /* Форма ввода */
         #input-form { 
             display: flex; 
             padding: 12px; 
@@ -88,10 +106,24 @@
             border-top: 1px solid #d1d5db; 
             gap: 8px; 
             flex-shrink: 0;
+            align-items: center;
         }
+        .attach-btn {
+            background: #e5e7eb;
+            border: none;
+            color: #4b5563;
+            padding: 10px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .attach-btn:hover { background: #d1d5db; }
         #message-input { 
             flex: 1; 
-            padding: 12px; 
+            padding: 10px 12px; 
             border: 1px solid #d1d5db; 
             border-radius: 8px; 
             font-size: 1rem; 
@@ -103,25 +135,34 @@
             background: #2563eb; 
             color: white; 
             border: none; 
-            padding: 0 18px; 
+            padding: 10px 18px; 
             border-radius: 8px; 
             font-weight: bold; 
             cursor: pointer; 
             flex-shrink: 0;
         }
+        #file-input { display: none; }
+
+        /* Стили для медиа в чате */
+        .chat-image { max-width: 100%; border-radius: 8px; margin-top: 6px; display: block; max-height: 200px; object-fit: cover; }
+        .chat-video { max-width: 100%; border-radius: 8px; margin-top: 6px; display: block; max-height: 200px; }
+        .chat-file-link { color: inherit; text-decoration: underline; display: inline-block; margin-top: 4px; }
     </style>
 </head>
 <body>
 
     <header>
         <h1>ИИ Чат</h1>
-        <button onclick="toggleSettings()">⚙️ Настройки</button>
+        <div class="header-btns">
+            <button onclick="clearChat()">🗑️ Очистить</button>
+            <button onclick="toggleSettings()">⚙️ Настройки</button>
+        </div>
     </header>
 
-    <!-- Модальное окно настроек -->
+    <!-- Модальное окно настроек (Base URL, Ключ, Модель, Температура) -->
     <div id="settings-modal" onclick="if(event.target === this) toggleSettings()">
         <div class="modal-content">
-            <h2>Настройки шлюза</h2>
+            <h2>Параметры шлюза и модели</h2>
             <div class="form-group">
                 <label>Base URL</label>
                 <input type="text" id="base-url" placeholder="https://api.apinex.bond/v1">
@@ -134,26 +175,44 @@
                 <label>Модель</label>
                 <input type="text" id="model-name" placeholder="claude-3-5-sonnet">
             </div>
+            <div class="form-group">
+                <label>Температура (<span id="temp-val">0.7</span>)</label>
+                <input type="range" id="temperature" min="0" max="1" step="0.1" value="0.7" oninput="document.getElementById('temp-val').innerText = this.value">
+            </div>
             <button class="save-btn" onclick="saveSettings()">Сохранить</button>
         </div>
     </div>
 
     <!-- Область чата -->
     <div id="chat-container">
-        <div class="message bot-message">Привет! Нажми «Настройки» вверху, проверь Base URL и свой ключ, и начни общение.</div>
+        <div class="message bot-message">Привет! Нажми «Настройки» вверху, проверь Base URL и свой ключ APInex, и начни общение. Сюда же можно прикреплять фото, видео и файлы.</div>
     </div>
 
-    <!-- Поле отправки -->
+    <!-- Превью выбранного файла -->
+    <div id="file-preview-container">
+        <span id="file-name-display">Файл выбран</span>
+        <button id="remove-file-btn" onclick="removeAttachedFile()">×</button>
+    </div>
+
+    <!-- Форма отправки с кнопкой прикрепления -->
     <form id="input-form" onsubmit="sendMessage(event)">
-        <input type="text" id="message-input" placeholder="Введите сообщение..." autocomplete="off" required>
+        <button type="button" class="attach-btn" onclick="document.getElementById('file-input').click()" title="Прикрепить файл, фото или видео">📎</button>
+        <input type="file" id="file-input" onchange="handleFileSelect(event)">
+        
+        <input type="text" id="message-input" placeholder="Введите сообщение..." autocomplete="off">
         <button type="submit" id="send-btn">Отправить</button>
     </form>
 
     <script>
+        let attachedFile = null;
+
         document.addEventListener("DOMContentLoaded", () => {
             document.getElementById("base-url").value = localStorage.getItem("pwa_base_url") || "https://api.apinex.bond/v1";
             document.getElementById("api-key").value = localStorage.getItem("pwa_api_key") || "sk-apx3522a446422cdb74f9e04a2499a426727835c0e5f41eeb5";
             document.getElementById("model-name").value = localStorage.getItem("pwa_model") || "claude-3-5-sonnet";
+            const savedTemp = localStorage.getItem("pwa_temp") || "0.7";
+            document.getElementById("temperature").value = savedTemp;
+            document.getElementById("temp-val").innerText = savedTemp;
         });
 
         function toggleSettings() {
@@ -165,15 +224,39 @@
             localStorage.setItem("pwa_base_url", document.getElementById("base-url").value.trim());
             localStorage.setItem("pwa_api_key", document.getElementById("api-key").value.trim());
             localStorage.setItem("pwa_model", document.getElementById("model-name").value.trim());
+            localStorage.setItem("pwa_temp", document.getElementById("temperature").value);
             toggleSettings();
-            appendMessage("Система", "Настройки сохранены!", "system-message");
+            appendMessage("Система", "Настройки успешно сохранены!", "system-message");
         }
 
-        function appendMessage(sender, text, className) {
+        function clearChat() {
+            document.getElementById("chat-container").innerHTML = '<div class="message bot-message">История очищена. О чем поговорим?</div>';
+            conversationHistory = [];
+        }
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            attachedFile = file;
+            document.getElementById("file-name-display").innerText = `📎 ${file.name}`;
+            document.getElementById("file-preview-container").style.display = "flex";
+        }
+
+        function removeAttachedFile() {
+            attachedFile = null;
+            document.getElementById("file-input").value = "";
+            document.getElementById("file-preview-container").style.display = "none";
+        }
+
+        function appendMessage(sender, htmlContent, className, isHtml = false) {
             const container = document.getElementById("chat-container");
             const msgDiv = document.createElement("div");
             msgDiv.className = `message ${className}`;
-            msgDiv.innerText = text;
+            if (isHtml) {
+                msgDiv.innerHTML = htmlContent;
+            } else {
+                msgDiv.innerText = htmlContent;
+            }
             container.appendChild(msgDiv);
             container.scrollTop = container.scrollHeight;
         }
@@ -184,20 +267,44 @@
             e.preventDefault();
             const input = document.getElementById("message-input");
             const text = input.value.trim();
-            if (!text) return;
+            if (!text && !attachedFile) return;
 
             const baseUrl = localStorage.getItem("pwa_base_url") || "https://api.apinex.bond/v1";
             const apiKey = localStorage.getItem("pwa_api_key") || "";
             const model = localStorage.getItem("pwa_model") || "claude-3-5-sonnet";
+            const temperature = parseFloat(localStorage.getItem("pwa_temp") || "0.7");
 
             if (!apiKey) {
                 alert("Введите API Key в настройках!");
                 return;
             }
 
-            appendMessage("Вы", text, "user-message");
+            // Формируем контент сообщения пользователя
+            let userDisplayHtml = "";
+            if (text) {
+                userDisplayHtml += `<div>${escapeHtml(text)}</div>`;
+            }
+
+            let filePayloadContent = text;
+
+            if (attachedFile) {
+                const fileUrl = URL.createObjectURL(attachedFile);
+                if (attachedFile.type.startsWith("image/")) {
+                    userDisplayHtml += `<img src="${fileUrl}" class="chat-image" alt="фото">`;
+                    filePayloadContent += ` [Прикрепленное изображение: ${attachedFile.name}]`;
+                } else if (attachedFile.type.startsWith("video/")) {
+                    userDisplayHtml += `<video src="${fileUrl}" controls class="chat-video"></video>`;
+                    filePayloadContent += ` [Прикрепленное видео: ${attachedFile.name}]`;
+                } else {
+                    userDisplayHtml += `<a href="${fileUrl}" download="${attachedFile.name}" class="chat-file-link">📄 ${attachedFile.name}</a>`;
+                    filePayloadContent += ` [Прикрепленный файл: ${attachedFile.name}]`;
+                }
+                removeAttachedFile();
+            }
+
+            appendMessage("Вы", userDisplayHtml, "user-message", true);
             input.value = "";
-            conversationHistory.push({ role: "user", content: text });
+            conversationHistory.push({ role: "user", content: filePayloadContent });
 
             const cleanBaseUrl = baseUrl.replace(/\/+$/, "");
             const endpoint = `${cleanBaseUrl}/chat/completions`;
@@ -211,6 +318,7 @@
                     },
                     body: JSON.stringify({
                         model: model,
+                        temperature: temperature,
                         messages: conversationHistory
                     })
                 });
@@ -228,6 +336,10 @@
             } catch (err) {
                 appendMessage("Ошибка", `Сетевая ошибка: ${err.message}`, "system-message");
             }
+        }
+
+        function escapeHtml(string) {
+            return string.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
         }
     </script>
 </body>
